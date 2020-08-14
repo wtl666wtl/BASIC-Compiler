@@ -9,6 +9,7 @@ enum Ttype{
 };
 static string identifier;
 static int numval;
+bool flag=0;
 int linenum,fornum,Lastfor[10006],isfor[10006],endfor[10006];//to match END FOR
 static int gettok(int f=0)
 {
@@ -157,12 +158,17 @@ static int getprecedence()
 }
 unique_ptr<ExprAST> LogError(const char *s)
 {
+	flag=1;
 	fprintf(stderr,"Error:%s\n",s);
 	return nullptr;
 }
 static unique_ptr<ExprAST> ParseExpression();
 static unique_ptr<ExprAST> ParseNumExpr()
 {
+	if(curtok=='-'){
+		getnext();
+		numval=0-numval;
+	}
 	auto res=make_unique<NumExprAST>(numval);
 	getnext();
 	return move(res);
@@ -217,6 +223,7 @@ static unique_ptr<ExprAST> ParseForExpr()
 static unique_ptr<ExprAST> ParseEndforExpr()
 {
 	getnext();
+	if(fornum==0)return LogError("too many ENDFOR");
 	endfor[Lastfor[fornum]]=linenum;
 	fornum--;
 	return make_unique<EndforExprAST>(move(forstmt[fornum+1][0]),
@@ -254,6 +261,8 @@ static unique_ptr<ExprAST> ParseExitExpr()
 static unique_ptr<ExprAST> ParseLetExpr()
 {
 	getnext();
+	int q=0;
+	while(curtok=='(')q++,getnext();
 	if(curtok!=ID)return LogError("expected identifier after LET");
 	auto qwq=ParseIDExpr();
 	VarExprAST* ptr = dynamic_cast<VarExprAST*>(qwq.get());
@@ -261,6 +270,11 @@ static unique_ptr<ExprAST> ParseLetExpr()
 	if(ptr!=nullptr){
 		qwq.release();
 		name.reset(ptr);
+	}
+	while(q){
+		if(curtok!=')')return LogError("expected ')'");
+		getnext();
+		q--;
 	}
 	if(curtok!='=')return LogError("expected '='");
 	getnext();
@@ -287,6 +301,7 @@ static unique_ptr<ExprAST> ParsePrimary()
 {
 	switch(curtok){
 		default:return LogError("unknown token when expecting an expression");
+		case '-':return ParseNumExpr();
 		case ID:return ParseIDExpr();
 		case NUM:return ParseNumExpr();
 		case '(':return ParseParenExpr();
@@ -359,6 +374,11 @@ int tranbinary(auto x)
 			return 4*(myvar[name].fi-varst);
 		}else{
 			int start=myvar[name].fi,id=myvar[name].se;
+			if(y->dim.size()!=limit[id].size()){
+				LogError("array definition");
+				y.release();
+				return 0;
+			}
 			result[nowpos++]=51+(14<<7)+(2<<12)+(8<<15)+(0<<20);
 			for(int i=0;i<y->dim.size();i++){
 				int tmppos=tranbinary(move(y->dim[i]));
@@ -721,7 +741,6 @@ void traninput(auto x)
 void translate(auto x)
 {
 	//printf("%d %d\n",linenum,x->key());
-	spos[linenum]=nowpos;
 	switch(x->key()){
 		default:break;
 		case 4:tranif(move(x));break;//if
@@ -754,7 +773,7 @@ int main()
 		inputlist[++inputcnt]=x;
 	}
 	inputcnt=0;
-	freopen("array_3.txt","r",stdin);
+	freopen("op_10.txt","r",stdin);
 	freopen("qwq.out","w",stdout);
 	//precedence['=']=0;
 	//let && = &,|| = |,!= = !,== = ~,>= = @,<= = #
@@ -771,8 +790,14 @@ int main()
 		//build AST
 		getnext(1);
 		auto AST=ParseExpression();
+		if(flag){
+			AST.release();
+			return 233;
+		}
 		//translate
+		spos[linenum]=nowpos;
 		if(AST!=nullptr)translate(move(AST));
+		if(flag)return 233;
 		//printf("%d %d\n",linenum,spos[linenum]);
 	}
 	//add end signal
@@ -790,6 +815,10 @@ int main()
 			if(jump[i][1]<jump[i][0]&&jump[i][0]<endfor[jump[i][1]]){
 				jumpline=spos[endfor[jump[i][1]]];
 			}else jumpline=spos[jump[i][1]];
+			if(jumpline>spos[linenum]){
+				LogError("jump across the border");
+				return 233;
+			}
 			Imm=4*(jumpline-i);
 			//beq reg0,reg0,Imm
 			result[i]=99u+(((Imm&(1<<11))>0)<<7)+((Imm%(1<<5)/2)<<8)+0+0+0+((Imm%(1<<11)/(1<<5))<<25)+(((Imm&(1<<12))>0)<<31);
@@ -798,6 +827,10 @@ int main()
 			if(jump[i][1]<jump[i][3]&&jump[i][3]<endfor[jump[i][1]]){
 				jumpline=spos[endfor[jump[i][1]]];
 			}else jumpline=spos[jump[i][1]];
+			if(jumpline>spos[linenum]){
+				LogError("jump across the border");
+				return 233;
+			}
 			Imm=4*(jumpline-i-1);
 			//lw reg1,reg9+jump[i][0]
 			result[i]=3+(1<<7)+(2<<12)+(9<<15)+(jump[i][0]<<20);
