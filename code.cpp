@@ -346,7 +346,7 @@ map<string,int>arraypos;//31->
 vector<int>limit[100006];
 const int varst=4*16*16*16;
 int varcnt,spos[100006],jump[100006][5],nowpos=0,varpos=varst;
-int arraynum=32,inputcnt,inputlist[100006],input[100006];
+int arraynum=32,inputcnt,inputlist[100006];
 uint result[200006];
 int tranbinary(auto x)
 {
@@ -802,7 +802,7 @@ int main()
 	}
 	//add end signal
 	result[nowpos]=0x0FF00513;
-	//jump & input
+	//jump
 	for(int i=0;i<=nowpos;i++)if(jump[i][2]<0){
 		int jumpline=0;uint Imm=0;
 		if(jump[i][2]==ENDFOR){
@@ -847,8 +847,6 @@ int main()
 			//beq reg1,reg0,Imm
 			result[i+1]=99u+(((Imm&(1<<11))>0)<<7)+((Imm%(1<<5)/2)<<8)+0+(1<<15)+0+((Imm%(1<<11)/(1<<5))<<25)+(((Imm&(1<<12))>0)<<31);
 		}
-	}else if(input[i]>0){
-		
 	}
 	//out
 	puts("@00000000");
